@@ -1,0 +1,121 @@
+/* @tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: #f0f2f5;
+  color: #333;
+}
+
+.room-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 1rem;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.voting-card {
+  @apply bg-white rounded-xl shadow-md p-4 text-center cursor-pointer transition-all;
+  height: 160px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.voting-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+}
+
+.voting-card.selected {
+  @apply border-4 border-blue-500;
+}
+
+.card-value {
+  @apply text-3xl font-bold;
+}
+
+.admin-badge {
+  @apply bg-yellow-100 text-yellow-800 text-xs font-medium px-2 py-1 rounded-full;
+}
+
+.spectator-badge {
+  @apply bg-purple-100 text-purple-800 text-xs font-medium px-2 py-1 rounded-full;
+} */
+
+/* Round table styling */
+.round-table-container {
+  position: relative;
+  min-height: 500px;
+  margin: 2rem 0;
+  display: flex;
+  justify-content: center;
+}
+
+.round-table {
+  position: relative;
+  width: 500px;
+  height: 500px;
+  border-radius: 50%;
+  background-color: #f8f9fa;
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.1);
+  margin: 0 auto;
+}
+
+.round-table-seat {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100px;
+  transition: all 0.3s ease;
+}
+
+.table-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+  z-index: 5;
+}
+
+.voting-results {
+  padding: 0.5rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .round-table {
+    width: 350px;
+    height: 350px;
+  }
+  
+  .round-table-seat {
+    width: 80px;
+  }
+  
+  .table-center {
+    width: 90px;
+    height: 90px;
+  }
+}
+
+@media (max-width: 576px) {
+  .round-table {
+    width: 300px;
+    height: 300px;
+  }
+  
+  .round-table-seat {
+    width: 70px;
+  }
+}
