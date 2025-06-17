@@ -7,32 +7,42 @@ import socket from "../socket";
 
 const Join = () => {
   const [name, setName] = useState("");
-  const [role, setRole] = useState("player"); // Add role state
+  const [role, setRole] = useState("player");
   const { roomId } = useParams();
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  // Add socket listener BEFORE joining
   useEffect(() => {
     socket.on("updatePlayers", (players) => {
       dispatch(setPlayers(players));
     });
 
-    return () => socket.off("updatePlayers");
-  }, [dispatch]);
+    socket.on("roomInfo", ({ roomName }) => {
+      dispatch(setRoom({ id: roomId, name: roomName }));
+      navigate(`/room/${roomId}`);
+    });
 
+    return () => {
+      socket.off("updatePlayers");
+      socket.off("roomInfo");
+    };
+  }, [dispatch, navigate, roomId]);
+
+  // Add validation function here
+  const validateName = (name) => {
+    return name.trim() !== '';
+  };
+
+  // Update joinRoom function with validation
   const joinRoom = () => {
-    // Create complete user object
+    if (!validateName(name)) {
+      alert('Please enter your name');
+      return;
+    }
+    
     const user = { name, role };
-    
-    // Update Redux
-    dispatch(setRoom({ id: roomId }));
     dispatch(setUser(user));
-    
-    // Emit with complete user data
-    socket.emit("joinRoom", { roomId, user }); // Send user object
-    
-    navigate(`/room/${roomId}`);
+    socket.emit("joinRoom", { roomId, user });
   };
 
   return (
@@ -61,7 +71,6 @@ const Join = () => {
           />
         </div>
 
-        {/* Add role selection */}
         <div className="mb-3">
           <label className="form-label">Role</label>
           <select

@@ -1,9 +1,70 @@
-// server.js
-// server.js
+// // server.js
+// // server.js
+// import express from "express";
+// import { createServer } from "http";
+// import { Server } from "socket.io";
+// import handleSocketEvents from './socketHandlers.js';
+
+
+// const app = express();
+// const httpServer = createServer(app);
+// const io = new Server(httpServer, {
+//   cors: {
+//     origin: "*",
+//     methods: ["GET", "POST"]
+//   }
+// });
+
+// const rooms = {};
+// const roomData = {}; 
+
+// io.on("connection", (socket) => {
+//   socket.on("createRoom", ({ roomId, roomName, user }) => {
+//     socket.join(roomId);
+//     roomData[roomId] = roomName; 
+
+//     rooms[roomId] = rooms[roomId] || [];
+//     rooms[roomId].push({ 
+//       id: socket.id, 
+//       name: user.name,
+//       role: user.role || "player"
+//     });
+
+//     io.to(roomId).emit("updatePlayers", rooms[roomId]);
+//   });
+
+//   socket.on("joinRoom", ({ roomId, user }) => {
+//     socket.join(roomId);
+//     rooms[roomId] = rooms[roomId] || [];
+
+//     rooms[roomId].push({
+//       id: socket.id,
+//       name: user.name,
+//       role: user.role || "player"
+//     });
+
+   
+//     const roomName = roomData[roomId] || "Unknown Room";
+//     socket.emit("roomInfo", { roomName });
+
+//     io.to(roomId).emit("updatePlayers", rooms[roomId]);
+//   });
+
+//   socket.on("disconnect", () => {
+//     for (const roomId in rooms) {
+//       rooms[roomId] = rooms[roomId].filter(p => p.id !== socket.id);
+//       io.to(roomId).emit("updatePlayers", rooms[roomId]);
+//     }
+//   });
+// });
+
+// httpServer.listen(3001, () => console.log("Server running on http://localhost:3001"));
+
+
 import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
-import cors from "cors";
+import { nanoid } from "nanoid";
 
 const app = express();
 const httpServer = createServer(app);
@@ -14,53 +75,165 @@ const io = new Server(httpServer, {
   }
 });
 
+// Enhanced room storage
 const rooms = {};
-const roomData = {}; // roomId => roomName
 
 io.on("connection", (socket) => {
+  console.log(`User connected: ${socket.id}`);
+
+  // Create room handler
   socket.on("createRoom", ({ roomId, roomName, user }) => {
     socket.join(roomId);
-    roomData[roomId] = roomName; // ✅ Store the room name
-
-    rooms[roomId] = rooms[roomId] || [];
-    rooms[roomId].push({ 
+    
+    // Initialize room with enhanced structure
+    rooms[roomId] = {
+      roomName,
+      players: [],
+      stories: [],
+      currentStory: null,
+      votes: {},
+      voteStatus: "hidden"
+    };
+    
+    // Add creator as first player
+    const newUser = { 
       id: socket.id, 
-      name: user.name,
-      role: user.role || "player"
-    });
-
-    io.to(roomId).emit("updatePlayers", rooms[roomId]);
+      ...user,
+      isModerator: true 
+    };
+    rooms[roomId].players.push(newUser);
+    
+    // Send room info to creator
+    socket.emit("roomInfo", { roomName, user: newUser });
+    
+    // Broadcast to all in room
+    io.to(roomId).emit("updatePlayers", rooms[roomId].players);
   });
 
+  // Join room handler
   socket.on("joinRoom", ({ roomId, user }) => {
+    if (!rooms[roomId]) {
+      socket.emit("error", "Room does not exist");
+      return;
+    }
+    
     socket.join(roomId);
-    rooms[roomId] = rooms[roomId] || [];
-
-    rooms[roomId].push({
-      id: socket.id,
-      name: user.name,
-      role: user.role || "player"
+    
+    // Add new player
+    const newUser = { 
+      id: socket.id, 
+      ...user,
+      isModerator: false 
+    };
+    rooms[roomId].players.push(newUser);
+    
+    // Send room info to new player
+    socket.emit("roomInfo", { 
+      roomName: rooms[roomId].roomName, 
+      user: newUser,
+      currentState: {
+        players: rooms[roomId].players,
+        currentStory: rooms[roomId].currentStory,
+        voteStatus: rooms[roomId].voteStatus,
+        votes: rooms[roomId].votes
+      }
     });
-
-    // ✅ Emit room name only to the user who just joined
-    const roomName = roomData[roomId] || "Unknown Room";
-    socket.emit("roomInfo", { roomName });
-
-    io.to(roomId).emit("updatePlayers", rooms[roomId]);
+    
+    // Broadcast to all in room
+    io.to(roomId).emit("updatePlayers", rooms[roomId].players);
   });
 
+  // Submit vote handler
+  socket.on("submitVote", ({ roomId, userId, vote }) => {
+    if (!rooms[roomId]) return;
+    
+    rooms[roomId].votes[userId] = vote;
+    io.to(roomId).emit("voteReceived", { userId, vote });
+  });
+
+  // Reveal votes handler
+  socket.on("revealVotes", (roomId) => {
+    if (!rooms[roomId]) return;
+    
+    rooms[roomId].voteStatus = "revealed";
+    io.to(roomId).emit("votesRevealed", rooms[roomId].votes);
+  });
+
+  // Next story handler
+  socket.on("nextStory", (roomId) => {
+    if (!rooms[roomId]) return;
+    
+    // Reset votes for new story
+    rooms[roomId].votes = {};
+    rooms[roomId].voteStatus = "voting";
+    
+    // Get next story from backlog
+    if (rooms[roomId].stories.length > 0) {
+      rooms[roomId].currentStory = rooms[roomId].stories.shift();
+    } else {
+      rooms[roomId].currentStory = null;
+    }
+    
+    io.to(roomId).emit("newStoryStarted", rooms[roomId].currentStory);
+  });
+
+  // Add story handler
+  socket.on("addStory", ({ roomId, story }) => {
+    if (!rooms[roomId]) return;
+    
+    const newStory = {
+      id: nanoid(8),
+      ...story,
+      status: "pending"
+    };
+    
+    rooms[roomId].stories.push(newStory);
+    io.to(roomId).emit("storyAdded", newStory);
+  });
+
+  // Disconnect handler
   socket.on("disconnect", () => {
+    console.log(`User disconnected: ${socket.id}`);
+    
     for (const roomId in rooms) {
-      rooms[roomId] = rooms[roomId].filter(p => p.id !== socket.id);
-      io.to(roomId).emit("updatePlayers", rooms[roomId]);
+      const room = rooms[roomId];
+      const playerIndex = room.players.findIndex(p => p.id === socket.id);
+      
+      if (playerIndex !== -1) {
+        // Remove player
+        const [disconnectedPlayer] = room.players.splice(playerIndex, 1);
+        
+        // Remove votes
+        if (room.votes[disconnectedPlayer.id]) {
+          delete room.votes[disconnectedPlayer.id];
+        }
+        
+        // Check if room is now empty
+        if (room.players.length === 0) {
+          // Clean up empty room after delay
+          setTimeout(() => {
+            if (rooms[roomId] && rooms[roomId].players.length === 0) {
+              delete rooms[roomId];
+              console.log(`Room ${roomId} deleted due to inactivity`);
+            }
+          }, 300000); // 5 minutes
+        } else {
+          // Transfer moderator if needed
+          if (disconnectedPlayer.isModerator) {
+            const newModerator = room.players[0];
+            newModerator.isModerator = true;
+            io.to(roomId).emit("newModerator", newModerator.id);
+          }
+          
+          io.to(roomId).emit("updatePlayers", room.players);
+        }
+      }
     }
   });
 });
 
-httpServer.listen(3001, () => console.log("Server running on http://localhost:3001"));
-
-
-
+const PORT = process.env.PORT || 3001;
+httpServer.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
 
 
